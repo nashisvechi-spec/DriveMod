@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DriveMod</string>
+    <string name="service_name">DriveMod — два окна и панель</string>
+    <string name="service_description">Открывает выбранные навигацию и музыку в разделённом экране, показывает четыре ярлыка. Использует только сведения о приложениях и размерах окон. Не анализирует тексты, поля ввода или сообщения, не отправляет данные в интернет. Включайте службу, если хотите запускать пару и пользоваться панелью DriveMod.</string>
+    <string name="service_summary">Запуск пары приложений и нижняя панель</string>
+</resources>

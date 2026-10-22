@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+def appVersion = new Properties()
+rootProject.file('version.properties').withInputStream { appVersion.load(it) }
+android {
+    namespace 'ru.drivemod'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'ru.drivemod'
+        minSdk 26
+        targetSdk 35
+        versionCode appVersion.versionCode.toInteger()
+        versionName appVersion.versionName
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        release { minifyEnabled false }
+        debug { applicationIdSuffix '' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint { abortOnError true; checkReleaseBuilds true }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }

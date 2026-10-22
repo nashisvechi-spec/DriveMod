@@ -1,0 +1,100 @@
+name: Android build and release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install compile SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile, test and lint
+        run: ./gradlew --no-daemon :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease :app:assembleDebug :testnav:assembleDebug :testmusic:assembleDebug
+      - name: Check published APK
+        run: |
+          VERSION=$(sed -n 's/^versionName=//p' version.properties)
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "dist/DriveMod-${VERSION}.apk"
+          CERT=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "dist/DriveMod-${VERSION}.apk" | sed -n 's/.*certificate SHA-256 digest: //p')
+          test "$CERT" = "$(cat docs/signing-certificate.sha256)"
+          (cd dist && sha256sum --check SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            testnav/build/outputs/apk/debug/testnav-debug.apk
+            testmusic/build/outputs/apk/debug/testmusic-debug.apk
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-release.html
+  android-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: emulator-apks
+          path: .
+      - name: Enable KVM access
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Real Android two-app smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 scripts/android_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-smoke-results
+          path: smoke-results/
+  publish:
+    needs: [verify, android-smoke]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish installable signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^versionName=//p' version.properties)
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            mkdir -p /tmp/drivemod-published
+            gh release download "$TAG" --pattern SHA256SUMS --dir /tmp/drivemod-published
+            cmp dist/SHA256SUMS /tmp/drivemod-published/SHA256SUMS
+            echo "This signed APK is already published."
+          else
+            gh release create "$TAG" "dist/DriveMod-${VERSION}.apk" dist/SHA256SUMS --title "DriveMod ${VERSION}" --notes-file "docs/releases/${VERSION}.md" --target "$GITHUB_SHA"
+          fi
