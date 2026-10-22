@@ -4,7 +4,7 @@
 
 ## Установка
 
-Скачайте **DriveMod-0.1.0.apk** в [Releases](https://github.com/nashisvechi-spec/DriveMod/releases/latest). Тот же подписанный APK хранится в `dist/`.
+Скачайте подписанный [**DriveMod-0.1.0.apk**](https://github.com/nashisvechi-spec/DriveMod/raw/refs/heads/main/dist/DriveMod-0.1.0.apk). Файл хранится в `dist/`; после прохождения CI тот же APK публикуется в [Releases](https://github.com/nashisvechi-spec/DriveMod/releases).
 
 1. Установите APK на Android 8.0 или новее. Автоматический вход в разделённый экран зависит от Android и прошивки; основной сценарий — телефон в портретной ориентации.
 2. На главном экране выберите навигацию и музыку. Список составляется из реально установленных приложений, подходящие выводятся выше. Можно выбрать приложение вне рекомендаций.
