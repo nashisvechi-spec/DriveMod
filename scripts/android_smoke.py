@@ -45,7 +45,9 @@ def choose_app(card, label):
 
 try:
     adb('wait-for-device')
-    for apk in ['app/build/outputs/apk/debug/app-debug.apk', 'testnav/build/outputs/apk/debug/testnav-debug.apk', 'testmusic/build/outputs/apk/debug/testmusic-debug.apk']:
+    versions = dict(line.strip().split('=', 1) for line in pathlib.Path('version.properties').read_text().splitlines() if '=' in line)
+    release_apk = 'dist/DriveMod-' + versions['versionName'] + '.apk'
+    for apk in [release_apk, 'testnav/build/outputs/apk/debug/testnav-debug.apk', 'testmusic/build/outputs/apk/debug/testmusic-debug.apk']:
         adb('install', '-r', apk)
     shell('settings', 'put', 'system', 'accelerometer_rotation', '0')
     shell('settings', 'put', 'system', 'user_rotation', '0')
@@ -87,7 +89,7 @@ try:
     second = re.search(r'secondWindow=\[(\d+), (\d+), (\d+), (\d+)\]', dump)
     assert first and second and int(first[4]) <= int(second[2]), 'Navigation should be above music: ' + dump
     (OUT / 'split.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
-    print('PASS: native home screen, installed-app picker for both roles, two separately installed applications in split-screen, accessibility service and four-slot dock.')
+    print('PASS: signed release APK ' + release_apk + ', native home screen, installed-app picker for both roles, two separately installed applications in split-screen, accessibility service and four-slot dock.')
 finally:
     # Collect diagnostics without hiding the original assertion if logcat returns nonzero.
     for name, command in {
