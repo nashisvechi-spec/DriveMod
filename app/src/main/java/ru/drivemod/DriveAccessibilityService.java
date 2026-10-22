@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.os.Handler;
+import android.os.Build;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
@@ -26,6 +27,7 @@ public class DriveAccessibilityService extends AccessibilityService {
     private volatile boolean driving;
     private String eventPackage = "";
     private volatile boolean pairVisible;
+    private String windowSummary = "";
     static DriveAccessibilityService current() { return instance; }
     boolean isDriving() { return driving; }
     private final Runnable poll = this::tick;
@@ -52,8 +54,19 @@ public class DriveAccessibilityService extends AccessibilityService {
         }
         stopDriving(); first = prefs.navFirst() ? nav : music; second = prefs.navFirst() ? music : nav;
         driving = true; pairVisible = false; eventPackage = "";
-        machine.begin(SystemClock.elapsedRealtime()); prefs.status("Открываю первое приложение…", false);
-        try { startActivity(AppCatalog.launch(first, false)); handler.postDelayed(poll, 180); }
+        prefs.status("Открываю приложения…", false);
+        try {
+            if (Build.VERSION.SDK_INT >= 32) {
+                machine.beginAdjacent(SystemClock.elapsedRealtime());
+                startActivity(new Intent(this, PairLaunchActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra("first", first.id()).putExtra("second", second.id()));
+            } else {
+                machine.begin(SystemClock.elapsedRealtime());
+                startActivity(AppCatalog.launch(first, false));
+            }
+            handler.postDelayed(poll, 180);
+        }
         catch (RuntimeException e) { fail("Не удалось открыть навигацию. Выберите приложение заново."); }
     }
     void stopDriving() {
@@ -65,6 +78,8 @@ public class DriveAccessibilityService extends AccessibilityService {
         handler.removeCallbacks(poll);
         if (!driving || first == null || second == null) return;
         Snapshot snapshot = snapshot();
+        windowSummary = "firstWindow=" + java.util.Arrays.toString(snapshot.first)
+                + "\nsecondWindow=" + java.util.Arrays.toString(snapshot.second);
         pairVisible = WindowGeometry.separated(snapshot.first, snapshot.second, snapshot.width, snapshot.height);
         boolean partial = snapshot.first != null && WindowGeometry.area(snapshot.first) < (long) snapshot.width * snapshot.height * .82;
         PairLaunchMachine.Action action = machine.observe(snapshot.first != null || eventPackage.equals(first.pkg()), partial, pairVisible, SystemClock.elapsedRealtime());
@@ -94,6 +109,7 @@ public class DriveAccessibilityService extends AccessibilityService {
         // The visible controls remain usable even if an OEM rejects automatic split-screen.
         if (driving && dock != null) { updateDock(false); handler.postDelayed(poll, 1000); }
     }
+    void pairLaunchFailed() { fail("Не удалось открыть выбранную пару. Выберите приложения заново или откройте разделённый экран через «Недавние»."); }
     private void updateDock(boolean keyboard) {
         KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         boolean locked = keyguard != null && keyguard.isKeyguardLocked();
@@ -145,5 +161,6 @@ public class DriveAccessibilityService extends AccessibilityService {
         out.println("DriveMod"); out.println("driving=" + driving); out.println("phase=" + machine.phase());
         out.println("pairVisible=" + pairVisible); out.println("dockHeight=" + (dock == null ? 0 : dock.height()));
         out.println("dockSlots=4"); out.println("version=" + BuildConfig.VERSION_NAME);
+        out.println(windowSummary);
     }
 }

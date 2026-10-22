@@ -6,8 +6,10 @@ final class PairLaunchMachine {
     enum Action { NONE, REQUEST_SPLIT, OPEN_SECOND, READY, FAIL }
     private Phase phase = Phase.IDLE;
     private long since;
+    private long pairTimeout = 9000;
     Phase phase() { return phase; }
-    void begin(long now) { phase = Phase.WAIT_FIRST; since = now; }
+    void begin(long now) { phase = Phase.WAIT_FIRST; since = now; pairTimeout = 9000; }
+    void beginAdjacent(long now) { phase = Phase.WAIT_PAIR; since = now; pairTimeout = 15000; }
     void stop() { phase = Phase.IDLE; }
     void fail() { phase = Phase.FAILED; }
     Action observe(boolean firstVisible, boolean firstPartial, boolean confirmedPair, long now) {
@@ -25,7 +27,7 @@ final class PairLaunchMachine {
             }
         } else if (phase == Phase.WAIT_PAIR) {
             if (confirmedPair) { phase = Phase.ACTIVE; return Action.READY; }
-            if (now - since >= 9000) { phase = Phase.FAILED; return Action.FAIL; }
+            if (now - since >= pairTimeout) { phase = Phase.FAILED; return Action.FAIL; }
         }
         return Action.NONE;
     }

@@ -5,6 +5,19 @@ import static org.junit.Assert.*;
 import static ru.drivemod.PairLaunchMachine.Action.*;
 
 public class PairLaunchMachineTest {
+    @Test public void activityLaunchWaitsForBothWindowsWithoutSendingServiceIntents() {
+        PairLaunchMachine m = new PairLaunchMachine(); m.beginAdjacent(0);
+        assertEquals(NONE, m.observe(false, false, false, 100));
+        assertEquals(NONE, m.observe(false, false, false, 1000));
+        assertEquals(READY, m.observe(true, true, true, 2000));
+        assertEquals(PairLaunchMachine.Phase.ACTIVE, m.phase());
+    }
+    @Test public void activityLaunchCannotSucceedWithOnlyOneWindow() {
+        PairLaunchMachine m = new PairLaunchMachine(); m.beginAdjacent(0);
+        assertEquals(NONE, m.observe(true, true, false, 14999));
+        assertEquals(FAIL, m.observe(true, true, false, 15000));
+        assertEquals(PairLaunchMachine.Phase.FAILED, m.phase());
+    }
     @Test public void waitsForFirstWindowBeforeOpeningSecond() {
         PairLaunchMachine m = new PairLaunchMachine(); m.begin(1000);
         assertEquals(NONE, m.observe(false, false, false, 2000));

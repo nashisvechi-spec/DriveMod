@@ -71,16 +71,34 @@ try:
     # would suppress other accessibility services. Tap the button recorded above instead.
     tap(button)
     dump = ''
-    for _ in range(30):
+    for _ in range(50):
         dump = shell('dumpsys', 'activity', 'service', 'ru.drivemod/.DriveAccessibilityService')
         if 'phase=ACTIVE' in dump and 'pairVisible=true' in dump:
             break
         time.sleep(.6)
+    # Ensure the pair survives the temporary launching Activity finishing.
+    time.sleep(2)
+    dump = shell('dumpsys', 'activity', 'service', 'ru.drivemod/.DriveAccessibilityService')
     (OUT / 'service.txt').write_text(dump)
     assert 'phase=ACTIVE' in dump and 'pairVisible=true' in dump, dump
     height = re.search(r'dockHeight=(\d+)', dump)
     assert height and int(height[1]) > 0 and 'dockSlots=4' in dump, dump
+    first = re.search(r'firstWindow=\[(\d+), (\d+), (\d+), (\d+)\]', dump)
+    second = re.search(r'secondWindow=\[(\d+), (\d+), (\d+), (\d+)\]', dump)
+    assert first and second and int(first[4]) <= int(second[2]), 'Navigation should be above music: ' + dump
     (OUT / 'split.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
     print('PASS: native home screen, installed-app picker for both roles, two separately installed applications in split-screen, accessibility service and four-slot dock.')
 finally:
-    (OUT / 'logcat.txt').write_text(shell('logcat', '-d', '-t', '1500'))
+    # Collect diagnostics without hiding the original assertion if logcat returns nonzero.
+    for name, command in {
+        'logcat.txt': ['logcat', '-d', '-t', '1500'],
+        'activities.txt': ['dumpsys', 'activity', 'activities'],
+        'windows.txt': ['dumpsys', 'window', 'windows'],
+    }.items():
+        result = subprocess.run(['adb', 'shell', *command], capture_output=True, timeout=30)
+        (OUT / name).write_bytes(result.stdout + result.stderr)
+        if name == 'logcat.txt':
+            print(result.stdout.decode('utf-8', errors='replace')[-18000:])
+    result = subprocess.run(['adb', 'exec-out', 'screencap', '-p'], capture_output=True, timeout=30)
+    if result.returncode == 0:
+        (OUT / 'final.png').write_bytes(result.stdout)
